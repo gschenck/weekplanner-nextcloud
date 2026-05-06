@@ -324,7 +324,7 @@ onUnmounted(() => {
 .custom-columns-grid {
 	display: grid;
 	grid-template-columns: repeat(5, 1fr) 0.8fr;
-	grid-template-rows: minmax(200px, auto);
+	grid-template-rows: minmax(260px, auto);
 	gap: 1px;
 	flex: 0 0 auto;
 	background-color: var(--color-border);
