@@ -14,6 +14,7 @@ import { useCustomColumns } from './composables/useCustomColumns'
 import { useRecurringTasks } from './composables/useRecurringTasks'
 import { useTaskEditing } from './composables/useTaskEditing'
 import { usePolling } from './composables/usePolling'
+import { useDragHandler } from './composables/useDragHandler'
 
 // --- Shared state ---
 const weekData = ref<WeekData>(emptyWeek())
@@ -77,13 +78,14 @@ const polling = usePolling({
 })
 
 // --- Drag handlers ---
-function onDragChange() {
-	const definitionsChanged = recurring.handleDragChange()
-	weekPersistence.debouncedSave()
-	if (definitionsChanged) {
-		columns.debouncedSaveCustomColumns()
-	}
-}
+// Always persist both week and custom columns: vuedraggable doesn't tell us
+// which list was involved, and saving only one side desyncs the other on
+// reload (duplicates / disappearing tasks for custom-column drags).
+const { onDragChange } = useDragHandler({
+	handleDragChange: recurring.handleDragChange,
+	debouncedSave: weekPersistence.debouncedSave,
+	debouncedSaveCustomColumns: columns.debouncedSaveCustomColumns,
+})
 
 // --- Lifecycle ---
 let mounted = false
