@@ -259,7 +259,13 @@ onUnmounted(() => {
 	grid-template-columns: repeat(5, 1fr) 0.8fr;
 	gap: 1px;
 	flex: 1 0 auto;
-	min-height: 240px;
+	/* Pin the weekdays' height so custom-columns can never steal
+	   space from them: as soon as custom grows beyond its minimum,
+	   it pushes the page taller instead of shrinking week-grid.
+	   Reserved (~400px) ≈ NC top bar (~50) + weekplanner padding
+	   (32) + weekplanner-header (~60) + custom-columns minimum
+	   (260). Falls back to 240px on very short viewports. */
+	min-height: max(240px, calc(100vh - 400px));
 	background-color: var(--color-border);
 	border: 1px solid var(--color-border);
 	border-radius: 8px 8px 0 0;
