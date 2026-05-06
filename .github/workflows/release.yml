@@ -37,11 +37,16 @@ jobs:
   psalm:
     uses: ./.github/workflows/psalm-matrix.yml
 
+  test-app-signature:
+    uses: ./.github/workflows/test-app-signature.yml
+    # The validate-keys job declares `environment: Production` and pulls
+    # APP_PRIVATE_KEY directly from there, so no explicit secrets pass.
+
   # ─── Release ──────────────────────────────────────────────────────────
   # Only runs after ALL CI checks pass.
 
   release:
-    needs: [lint-info-xml, lint-eslint, lint-stylelint, lint-php, lint-php-cs, node-build, psalm]
+    needs: [lint-info-xml, lint-eslint, lint-stylelint, lint-php, lint-php-cs, node-build, psalm, test-app-signature]
     runs-on: ubuntu-latest
     environment: Production
     permissions:
@@ -136,44 +141,20 @@ jobs:
         run: |
           echo "$APP_PRIVATE_KEY" > /tmp/app.key
           curl -sf https://raw.githubusercontent.com/nextcloud/app-certificate-requests/master/weekplanner/weekplanner.crt > /tmp/app.crt
-          php <<'SIGN_EOF'
-          <?php
-          $appId = getenv('APP_ID');
-          $appPath = '/tmp/' . $appId;
-          $privateKey = openssl_pkey_get_private(file_get_contents('/tmp/app.key'));
-          if ($privateKey === false) {
-              fwrite(STDERR, "::error::Failed to load private key\n");
-              exit(1);
-          }
-          $certificate = file_get_contents('/tmp/app.crt');
-
-          $dir = new RecursiveDirectoryIterator($appPath, RecursiveDirectoryIterator::SKIP_DOTS);
-          $iterator = new RecursiveIteratorIterator($dir);
-
-          $hashes = [];
-          foreach ($iterator as $file) {
-              if ($file->isFile()) {
-                  $relativePath = substr($file->getPathname(), strlen($appPath) + 1);
-                  if ($relativePath === 'appinfo/signature.json') {
-                      continue;
-                  }
-                  $hashes[$relativePath] = hash_file('sha512', $file->getPathname());
-              }
-          }
-          ksort($hashes);
-
-          openssl_sign(json_encode($hashes), $signature, $privateKey, OPENSSL_ALGO_SHA512);
-
-          $result = [
-              'hashes' => $hashes,
-              'signature' => base64_encode($signature),
-              'certificate' => $certificate,
-          ];
-
-          file_put_contents("$appPath/appinfo/signature.json", json_encode($result, JSON_PRETTY_PRINT));
-          echo "Signed " . count($hashes) . " files\n";
-          SIGN_EOF
+          # sign-app.php aborts if the cert public key doesn't match the
+          # private key — that mismatch is the most likely cause of the
+          # "Signature could not get verified" integrity error reported
+          # against v1.8.1.
+          php tools/sign-app.php "/tmp/${APP_ID}" /tmp/app.key /tmp/app.crt
           rm -f /tmp/app.key /tmp/app.crt
+
+      - name: Verify signature locally (mirrors Nextcloud integrity check)
+        if: steps.signing.outputs.available == 'true'
+        run: |
+          # Runs the same checks as `occ integrity:check-app weekplanner`.
+          # If this fails the release is aborted before publishing, so users
+          # never see "Signature could not get verified" in the admin panel.
+          php tools/verify-app-signature.php "/tmp/${APP_ID}" --cn="${APP_ID}"
 
       - name: Create tarball
         run: |

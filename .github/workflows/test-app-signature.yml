@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2026 Sören Johanson
+# SPDX-License-Identifier: MIT
+
+# Two-layer guard for the app signing pipeline.
+#
+# 1. roundtrip — runs on every PR/push: exercises the sign + verify scripts
+#    with throwaway keys to catch logic regressions in tools/sign-app.php or
+#    tools/verify-app-signature.php. No secrets needed, safe for fork PRs.
+#
+# 2. validate-keys — runs whenever secrets are available (push to main,
+#    internal PRs, release): proves APP_PRIVATE_KEY still matches the
+#    published weekplanner.crt before the release pipeline tries to use it.
+#    Skips silently on fork PRs where the secret can't be exposed.
+#    This is the gate that would have caught the v1.8.1 drift.
+
+name: Test app signature
+
+on:
+  pull_request:
+    paths:
+      - 'tools/sign-app.php'
+      - 'tools/verify-app-signature.php'
+      - 'tools/test-app-signature.sh'
+      - '.github/workflows/test-app-signature.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/sign-app.php'
+      - 'tools/verify-app-signature.php'
+      - 'tools/test-app-signature.sh'
+      - '.github/workflows/test-app-signature.yml'
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  roundtrip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@cf4cade2721270509d5b1c766ab3549210a39a2a # v2.33.0
+        with:
+          php-version: '8.2'
+          extensions: openssl, json
+          coverage: none
+
+      - name: Run signing round-trip
+        run: bash tools/test-app-signature.sh
+
+  validate-keys:
+    runs-on: ubuntu-latest
+    # APP_PRIVATE_KEY is scoped to the Production environment (same as the
+    # release job). Without declaring it here the secret resolves to an
+    # empty string and the job skips itself.
+    environment: Production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@cf4cade2721270509d5b1c766ab3549210a39a2a # v2.33.0
+        with:
+          php-version: '8.2'
+          extensions: openssl, json
+          coverage: none
+
+      - name: Validate APP_PRIVATE_KEY against published weekplanner.crt
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_PRIVATE_KEY:-}" ]; then
+            # Fork PR or maintainer hasn't configured the secret yet.
+            # Don't fail the workflow — the roundtrip job already covered
+            # the logic, and release.yml has its own guard.
+            echo "::warning::APP_PRIVATE_KEY not available — skipping real-key validation."
+            exit 0
+          fi
+          echo "$APP_PRIVATE_KEY" > /tmp/app.key
+          # Fetch the same certificate release.yml would use at sign time.
+          curl -sf \
+            https://raw.githubusercontent.com/nextcloud/app-certificate-requests/master/weekplanner/weekplanner.crt \
+            > /tmp/app.crt
+          # Tiny fixture so sign-app.php has something to hash. The script
+          # exits non-zero if the cert public key doesn't match the private
+          # key — that's the actual check we care about here.
+          mkdir -p /tmp/wp-fixture/appinfo
+          echo '<?xml version="1.0"?><info><id>weekplanner</id></info>' \
+            > /tmp/wp-fixture/appinfo/info.xml
+          php tools/sign-app.php /tmp/wp-fixture /tmp/app.key /tmp/app.crt
+          # And re-verify, end-to-end, exactly like Nextcloud would.
+          php tools/verify-app-signature.php /tmp/wp-fixture --cn=weekplanner
+          rm -f /tmp/app.key /tmp/app.crt
