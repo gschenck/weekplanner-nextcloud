@@ -230,9 +230,8 @@ onUnmounted(() => {
 .weekplanner {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	min-height: 100%;
 	padding: 16px;
-	overflow-y: auto;
 }
 
 .weekplanner-header {
@@ -258,9 +257,9 @@ onUnmounted(() => {
 .week-grid {
 	display: grid;
 	grid-template-columns: repeat(5, 1fr) 0.8fr;
-	grid-template-rows: minmax(480px, auto);
 	gap: 1px;
-	flex-shrink: 0;
+	flex: 1 0 auto;
+	min-height: 240px;
 	background-color: var(--color-border);
 	border: 1px solid var(--color-border);
 	border-radius: 8px 8px 0 0;
@@ -325,9 +324,9 @@ onUnmounted(() => {
 .custom-columns-grid {
 	display: grid;
 	grid-template-columns: repeat(5, 1fr) 0.8fr;
-	grid-template-rows: minmax(280px, auto);
+	grid-template-rows: minmax(200px, auto);
 	gap: 1px;
-	flex-shrink: 0;
+	flex: 0 0 auto;
 	background-color: var(--color-border);
 	border: 1px solid var(--color-border);
 	border-top: none;
@@ -367,10 +366,8 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
 	.weekplanner {
-		height: auto;
-		min-height: 100%;
-		overflow-y: auto;
-		-webkit-overflow-scrolling: touch;
+		min-height: 100vh;
+		padding: 8px;
 	}
 
 	.weekplanner-header {
@@ -379,39 +376,33 @@ onUnmounted(() => {
 		gap: 8px;
 	}
 
-	.week-grid {
-		display: flex;
-		flex-direction: column;
-		gap: 0;
-		flex: none;
-		height: auto;
-		min-height: unset;
-		overflow: visible;
+	/* Flatten the two grid wrappers and the weekend wrapper so every
+	   weekday, weekend half, and custom column becomes a direct flex
+	   child of .weekplanner. That gives them all an equal initial
+	   share of the viewport via `flex: 1 1 0`, and lets any overflow
+	   push the page taller (whole-page scroll). */
+	.week-grid,
+	.weekend-column,
+	.custom-columns-grid {
+		display: contents;
+	}
+
+	.day-column,
+	.weekend-half,
+	.custom-column {
+		flex: 1 1 0;
+		min-height: 0;
+		background-color: var(--color-main-background);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.day-column:first-of-type {
+		border-top: 1px solid var(--color-border);
 		border-radius: 8px 8px 0 0;
 	}
 
-	.week-grid .day-column,
-	.week-grid .weekend-half {
-		min-height: 80px;
-	}
-
-	.week-grid .weekend-column {
-		gap: 0;
-	}
-
-	.custom-columns-grid {
-		display: flex;
-		flex-direction: column;
-		gap: 0;
-		border-top: 1px solid var(--color-border);
+	.custom-column:last-of-type {
 		border-radius: 0 0 8px 8px;
-		height: auto;
-		min-height: unset;
-	}
-
-	.custom-columns-grid .custom-column {
-		grid-column: span 1;
-		min-height: auto;
 	}
 }
 </style>
