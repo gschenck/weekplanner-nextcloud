@@ -275,6 +275,7 @@ onMounted(() => {
 .edit-dialog-body {
 	padding: 16px 20px;
 	overflow-y: auto;
+	overflow-x: hidden;
 	flex: 1;
 }
 
