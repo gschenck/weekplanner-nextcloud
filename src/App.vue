@@ -3,11 +3,11 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import NcAppContent from '@nextcloud/vue/components/NcAppContent'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
-import type { RecurringTaskDefinition, WeekData } from './types'
+import type { RecurringTaskDefinition, WeekData, DayKey, Task } from './types'
 import { WEEKDAY_KEYS, WEEKEND_KEYS, ALL_KEYS, DAY_LABELS } from './types'
 import TaskList from './components/TaskList.vue'
 import EditDialog from './components/EditDialog.vue'
-import { emptyWeek } from './utils/weekData'
+import { emptyWeek, normalizeWeekData } from './utils/weekData'
 import { useWeekNavigation } from './composables/useWeekNavigation'
 import { useWeekPersistence } from './composables/useWeekPersistence'
 import { useCustomColumns } from './composables/useCustomColumns'
@@ -18,8 +18,6 @@ import { useDragHandler } from './composables/useDragHandler'
 import { getISOWeek, getWeekMonday, getWeekDates } from './utils/dateUtils'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
-import { normalizeWeekData } from './utils/weekData'
-import type { DayKey, Task } from './types'
 
 // --- Shared state ---
 const weekData = ref<WeekData>(emptyWeek())
@@ -261,25 +259,25 @@ onUnmounted(() => {
 				</div>
 
 				<Teleport to="body">
-				<EditDialog
-					v-if="editingTask"
-					:title="editTitle"
-					:notes="editNotes"
-					:recurrence="editRecurrence"
-					:color="editColor"
-					:is-recurring="editingTaskIsRecurring"
-					:current-location="editingTask.day"
-					:move-day-options="moveDayOptions"
-					:move-next-week-day-options="moveNextWeekDayOptions"
-					:move-column-options="moveColumnOptions"
-					@update:title="editTitle = $event"
-					@update:notes="editNotes = $event"
-					@update:recurrence="editRecurrence = $event"
-					@update:color="editColor = $event"
-					@save="saveEdit"
-					@delete="deleteEditingTask($event)"
-					@move="moveEditingTask($event)"
-					@move-to-next-week="moveEditingTaskToNextWeek($event)" />
+					<EditDialog
+						v-if="editingTask"
+						:title="editTitle"
+						:notes="editNotes"
+						:recurrence="editRecurrence"
+						:color="editColor"
+						:is-recurring="editingTaskIsRecurring"
+						:current-location="editingTask.day"
+						:move-day-options="moveDayOptions"
+						:move-next-week-day-options="moveNextWeekDayOptions"
+						:move-column-options="moveColumnOptions"
+						@update:title="editTitle = $event"
+						@update:notes="editNotes = $event"
+						@update:recurrence="editRecurrence = $event"
+						@update:color="editColor = $event"
+						@save="saveEdit"
+						@delete="deleteEditingTask($event)"
+						@move="moveEditingTask($event)"
+						@move-to-next-week="moveEditingTaskToNextWeek($event)" />
 				</Teleport>
 			</div>
 		</NcAppContent>
